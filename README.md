@@ -16,7 +16,7 @@ login, all four show up. You connect once and pick the store on each command.
 You need a Cloudflare account (the free plan is enough) and Node installed.
 
 ```bash
-git clone https://github.com/<your-user>/yampi-mcp && cd yampi-mcp
+git clone https://github.com/Eduardo-Orsi/yampi-mcp && cd yampi-mcp
 npm install
 cp wrangler.example.jsonc wrangler.jsonc
 npx wrangler kv namespace create OAUTH_KV   # paste the returned id into wrangler.jsonc
