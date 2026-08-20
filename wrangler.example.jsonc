@@ -1,0 +1,22 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "yampi-mcp",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	// Guarda registros de cliente OAuth, códigos e tokens (só por hash) e a
+	// Credencial de Loja cifrada. Crie com:
+	//   wrangler kv namespace create OAUTH_KV
+	"kv_namespaces": [
+		{
+			"binding": "OAUTH_KV",
+			"id": "COLE_AQUI_O_ID_DO_SEU_KV",
+			"remote": true
+		}
+	]
+}
