@@ -14,8 +14,26 @@ import { registerReadTools } from "./tools/read";
 import { registerWriteTools } from "./tools/write";
 import { YampiClient } from "./yampi";
 
+/**
+ * Branding advertised in `serverInfo`. No Claude client renders `icons` today
+ * (modelcontextprotocol/inspector#152) — this is here for the day one does.
+ * `src` is absolute because the client fetches it without a base URL.
+ */
+const BRANDING = {
+  title: "Yampi",
+  description: "Read and manage your Yampi stores: orders, products, customers, coupons, offers.",
+  websiteUrl: "https://github.com/Eduardo-Orsi/yampi-mcp",
+  icons: [
+    {
+      src: "https://raw.githubusercontent.com/Eduardo-Orsi/yampi-mcp/main/assets/yampi-icon.png",
+      mimeType: "image/png",
+      sizes: ["512x512"],
+    },
+  ],
+};
+
 export function createServer(props: GrantProps): McpServer {
-  const server = new McpServer({ name: "yampi-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: "yampi-mcp", version: "0.1.0", ...BRANDING });
   const ctx = {
     client: new YampiClient({ userToken: props.userToken, secretKey: props.secretKey }),
     stores: props.stores,

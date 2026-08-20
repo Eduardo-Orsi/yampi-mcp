@@ -1,4 +1,15 @@
-# yampi-mcp
+<p align="center">
+  <img src="assets/yampi-icon.png" alt="Yampi" height="88">
+</p>
+
+<h1 align="center">yampi-mcp</h1>
+
+<p align="center">
+  <a href="https://github.com/Eduardo-Orsi/yampi-mcp/actions/workflows/ci.yml"><img src="https://github.com/Eduardo-Orsi/yampi-mcp/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://workers.cloudflare.com"><img src="https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
+  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-2026--07--28-black" alt="MCP"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT"></a>
+</p>
 
 An MCP server that lets you talk to your [Yampi](https://www.yampi.com.br) store from Claude —
 look up orders, create products, adjust stock, build coupons and offers.
@@ -210,3 +221,7 @@ issue — see [SECURITY.md](SECURITY.md).
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+The Yampi logo in `assets/` is Yampi's trademark, used here only to identify which platform
+this server talks to. It is not covered by the MIT license and this project is not affiliated
+with or endorsed by Yampi.
