@@ -1,55 +1,54 @@
 # Yampi MCP
 
-Servidor MCP que permite a um lojista Yampi conversar com sua própria loja a partir do
-cliente Claude dele. Cada lojista hospeda a própria cópia: o projeto é distribuído como
-código, nunca como serviço.
+MCP server that lets a Yampi merchant talk to their own store from their Claude client.
+Each merchant hosts their own copy: the project is distributed as code, never as a service.
 
 ## Language
 
-### Participantes
+### Participants
 
-**Lojista**:
-Pessoa que possui uma Loja Yampi e hospeda a própria Instância deste servidor.
-_Avoid_: usuário, cliente, merchant
+**Merchant**:
+A person who owns a Yampi Store and hosts their own Instance of this server.
+_Avoid_: user, customer, client, lojista
 
-**Loja**:
-Uma conta de e-commerce na Yampi, identificada por seu alias.
-_Avoid_: conta, store, shop, tenant
+**Store**:
+An e-commerce account on Yampi, identified by its alias.
+_Avoid_: account, shop, tenant, loja
 
-**Instância**:
-Um deploy deste servidor, pertencente a exatamente um Lojista e atendendo todas as Lojas
-que a Credencial de Loja dele alcança.
-_Avoid_: servidor, serviço, tenant, ambiente
+**Instance**:
+One deploy of this server, belonging to exactly one Merchant and serving every Store the
+Merchant's Store Credential reaches.
+_Avoid_: server, service, tenant, environment
 
-**Conector**:
-A entrada que o Lojista cadastra no cliente Claude dele apontando para sua Instância.
-_Avoid_: integração, plugin, extensão
+**Connector**:
+The entry the Merchant registers in their Claude client pointing at their Instance.
+_Avoid_: integration, plugin, extension
 
-### Credenciais
+### Credentials
 
-**Credencial de Loja**:
-O par User-Token e User-Secret-Key que concede acesso irrestrito a uma Loja. Apresentá-la
-é o que prova ser o Lojista; não existe senha separada.
-_Avoid_: token, chave de API, api key
+**Store Credential**:
+The User-Token / User-Secret-Key pair granting unrestricted access to a Store. Presenting it
+is what proves you are the Merchant; there is no separate password.
+_Avoid_: token, API key, api key
 
-**Concessão**:
-A autorização que o Lojista dá a um Conector, guardando sua Credencial de Loja de forma
-cifrada. Revogá-la desliga aquele Conector sem afetar os demais.
-_Avoid_: sessão, login, grant, permissão
+**Grant**:
+The authorization the Merchant gives a Connector, holding their Store Credential encrypted.
+Revoking it turns off that Connector without affecting the others.
+_Avoid_: session, login, permission
 
-### Níveis de operação
+### Operation levels
 
-**Leitura**:
-Operação que apenas consulta a Loja. Sempre disponível.
-_Avoid_: consulta, query, read-only
+**Read**:
+An operation that only queries the Store. Always available.
+_Avoid_: query, lookup, read-only
 
-**Escrita Reversível**:
-Operação que altera a Loja e cujo efeito o Lojista consegue desfazer pelo painel Yampi —
-criar e editar produto, SKU, estoque, cupom.
-_Avoid_: mutação, escrita segura
+**Reversible Write**:
+An operation that changes the Store and whose effect the Merchant can undo from the Yampi
+dashboard — creating and editing a product, SKU, stock, coupon.
+_Avoid_: mutation, safe write
 
-**Ação Vedada**:
-Operação deliberadamente ausente do servidor por ser irreversível — cancelar pedido,
-estornar compra, trocar gateway de pagamento. Não existe em código; não é uma
-funcionalidade desligada.
-_Avoid_: ação bloqueada, ação desabilitada, feature flag
+**Forbidden Action**:
+An operation deliberately absent from the server because it is irreversible — cancelling an
+order, refunding a purchase, switching payment gateway. It does not exist in code; it is not
+a feature that was switched off.
+_Avoid_: blocked action, disabled action, feature flag

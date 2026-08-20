@@ -1,50 +1,50 @@
 /**
- * yampi-mcp — servidor MCP remoto para lojas Yampi.
+ * yampi-mcp — remote MCP server for Yampi stores.
  *
- * Fiação: o OAuthProvider protege /mcp e cuida de DCR, PKCE e metadata; o
- * defaultHandler serve a tela onde o Lojista apresenta a Credencial de Loja.
- * As tools recebem um YampiClient já montado com a credencial da Concessão.
+ * Wiring: the OAuthProvider protects /mcp and handles DCR, PKCE and metadata; the
+ * defaultHandler serves the screen where the Merchant presents the Store Credential.
+ * The tools receive a YampiClient already built with the Grant's credential.
  */
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
-import { tratarAutorizacao, type Env, type PropsDaConcessao } from "./authorize";
-import { registrarEscrita } from "./tools/escrita";
-import { registrarLeitura } from "./tools/leitura";
-import { registrarOfertas } from "./tools/ofertas";
+import { handleAuthorize, type Env, type GrantProps } from "./authorize";
+import { registerOfferTools } from "./tools/offers";
+import { registerReadTools } from "./tools/read";
+import { registerWriteTools } from "./tools/write";
 import { YampiClient } from "./yampi";
 
-export function criarServidor(props: PropsDaConcessao): McpServer {
+export function createServer(props: GrantProps): McpServer {
   const server = new McpServer({ name: "yampi-mcp", version: "0.1.0" });
   const ctx = {
     client: new YampiClient({ userToken: props.userToken, secretKey: props.secretKey }),
-    lojas: props.lojas,
+    stores: props.stores,
   };
-  registrarLeitura(server, ctx);
-  registrarEscrita(server, ctx);
-  registrarOfertas(server, ctx);
+  registerReadTools(server, ctx);
+  registerWriteTools(server, ctx);
+  registerOfferTools(server, ctx);
   return server;
 }
 
-const manipuladorMcp = {
+const mcpHandler = {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    // O OAuthProvider injeta as props da Concessão no ExecutionContext.
-    const props = (ctx as ExecutionContext & { props?: PropsDaConcessao }).props;
+    // The OAuthProvider injects the Grant props into the ExecutionContext.
+    const props = (ctx as ExecutionContext & { props?: GrantProps }).props;
     if (!props?.userToken) {
-      return new Response("Concessão sem credencial. Reconecte o conector.", { status: 401 });
+      return new Response("Grant without credential. Reconnect the connector.", { status: 401 });
     }
-    return createMcpHandler(() => criarServidor(props))(request, env, ctx);
+    return createMcpHandler(() => createServer(props))(request, env, ctx);
   },
 };
 
-const manipuladorPadrao = {
-  fetch: (request: Request, env: Env) => tratarAutorizacao(request, env),
+const defaultHandler = {
+  fetch: (request: Request, env: Env) => handleAuthorize(request, env),
 };
 
 export default new OAuthProvider({
   apiRoute: "/mcp",
-  apiHandler: manipuladorMcp,
-  defaultHandler: manipuladorPadrao,
+  apiHandler: mcpHandler,
+  defaultHandler,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/oauth/token",
   clientRegistrationEndpoint: "/oauth/register",

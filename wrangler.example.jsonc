@@ -9,13 +9,13 @@
 	"observability": {
 		"enabled": true
 	},
-	// Guarda registros de cliente OAuth, códigos e tokens (só por hash) e a
-	// Credencial de Loja cifrada. Crie com:
+	// Holds OAuth client records, codes and tokens (hash only) and the encrypted
+	// Store Credential. Create it with:
 	//   wrangler kv namespace create OAUTH_KV
 	"kv_namespaces": [
 		{
 			"binding": "OAUTH_KV",
-			"id": "COLE_AQUI_O_ID_DO_SEU_KV",
+			"id": "PASTE_YOUR_KV_NAMESPACE_ID_HERE",
 			"remote": true
 		}
 	]

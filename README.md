@@ -1,202 +1,200 @@
 # yampi-mcp
 
-Servidor MCP que deixa você conversar com sua loja [Yampi](https://www.yampi.com.br) pelo
-Claude — consultar pedidos, criar produtos, ajustar estoque, montar cupons e ofertas.
+An MCP server that lets you talk to your [Yampi](https://www.yampi.com.br) store from Claude —
+look up orders, create products, adjust stock, build coupons and offers.
 
-Cada lojista hospeda a própria cópia na Cloudflare. **Este projeto não é um serviço:
-ninguém guarda as suas credenciais além de você.** Não é oficial nem tem vínculo com a Yampi.
+Every merchant hosts their own copy on Cloudflare. **This is not a service: nobody holds your
+credentials but you.** Unofficial, and not affiliated with Yampi.
 
-## Como funciona
+## How it works
 
-Uma credencial da Yampi é do **usuário**, não da loja: se você tem quatro lojas no mesmo
-login, as quatro aparecem automaticamente. Você conecta uma vez e escolhe a loja em cada
-comando.
+A Yampi credential belongs to the **user**, not the store: if you run four stores under one
+login, all four show up. You connect once and pick the store on each command.
 
-## Instalação
+## Setup
 
-Você precisa de uma conta na Cloudflare (o plano grátis basta) e do Node instalado.
+You need a Cloudflare account (the free plan is enough) and Node installed.
 
 ```bash
-git clone https://github.com/<seu-usuario>/yampi-mcp && cd yampi-mcp
+git clone https://github.com/<your-user>/yampi-mcp && cd yampi-mcp
 npm install
 cp wrangler.example.jsonc wrangler.jsonc
-npx wrangler kv namespace create OAUTH_KV   # cole o id devolvido em wrangler.jsonc
+npx wrangler kv namespace create OAUTH_KV   # paste the returned id into wrangler.jsonc
 npx wrangler deploy
 ```
 
-No cliente Claude (claude.ai, Desktop ou Code), adicione um conector personalizado apontando
-para `https://yampi-mcp.<seu-subdominio>.workers.dev/mcp`.
+In your Claude client (claude.ai, Desktop or Code), add a custom connector pointing at
+`https://yampi-mcp.<your-subdomain>.workers.dev/mcp`.
 
-Ao conectar, abre uma tela pedindo seu **User-Token** e **User-Secret-Key**. Você os encontra
-no painel da Yampi em `Perfil › Credenciais de API`. É só isso — não há senha para criar.
+On connect, a screen asks for your **User-Token** and **User-Secret-Key**. You'll find them in
+the Yampi dashboard under `Perfil › Credenciais de API` (Profile › API Credentials). That's it — there's no password to create.
 
-## Como se usa
+## Using it
 
-Depois de conectar, é conversa normal:
+Once connected, it's plain conversation:
 
-> *"Quantos pedidos pagos entraram na loja X entre 1 e 15 de junho?"*
-> *"Cria um produto chamado Camiseta Preta, marca Acme, SKU CAM-PRETA-M, R$ 79,90, 20 em estoque."*
-> *"O SKU CAM-PRETA-M está com preço errado, muda para R$ 89,90 e baixa o estoque para 5."*
-> *"Quais carrinhos foram abandonados essa semana e quanto somam?"*
-> *"Cria um cupom de 15% válido até o fim do mês, mínimo de R$ 100, 50 usos."*
+> *"How many paid orders did store X get between June 1st and 15th?"*
+> *"Create a product called Black T-Shirt, brand Acme, SKU TS-BLACK-M, R$ 79.90, 20 in stock."*
+> *"SKU TS-BLACK-M is priced wrong — change it to R$ 89.90 and drop stock to 5."*
+> *"Which carts were abandoned this week and what do they add up to?"*
+> *"Create a 15% coupon valid through month end, R$ 100 minimum, 50 uses."*
 
-Com mais de uma loja na conta, diga qual — as tools exigem isso explicitamente para não
-escrever na loja errada.
+With more than one store on the account, say which one — the tools require it explicitly so
+nothing gets written to the wrong store.
 
-## O que ele faz
+## What it does
 
-| Tool | O que faz |
+| Tool | What it does |
 |---|---|
-| `descrever_loja` | Lojas, status de pedido, categorias e marcas — o mapa, para não adivinhar identificadores |
-| `buscar_pedidos` | Pedidos com filtro de status, período e texto livre |
-| `detalhar_pedido` | Um pedido com itens, cliente, pagamentos, endereço e histórico |
-| `buscar_produtos` | Catálogo com SKUs, preços e imagens |
-| `detalhar_produto` | Um produto com variações, estoque, marca e categorias |
-| `buscar_clientes` | Clientes e endereços |
-| `historico_cliente` | Um cliente e todos os pedidos dele |
-| `carrinhos_abandonados` | Carrinhos que não viraram pedido |
-| `criar_produto` | Cadastra produto com SKUs |
-| `atualizar_produto` | Altera campos de um produto |
-| `gerenciar_sku` | Cria SKU ou atualiza preço e estoque em lote |
-| `criar_cupom` | Cupom de desconto |
-| `avancar_status_pedido` ⚠️ | Move o pedido para outro status |
-| `comentar_pedido` ⚠️ | Comentário interno no pedido |
-| `gerenciar_ofertas` | Cashback, order bump, upsell e brinde |
+| `describe_store` | Stores, order statuses, categories and brands — the map, so the model stops guessing ids |
+| `search_orders` | Orders filtered by status, period and free text |
+| `get_order` | One order with items, customer, payments, address and history |
+| `search_products` | Catalog with SKUs, prices and images |
+| `get_product` | One product with variations, stock, brand and categories |
+| `search_customers` | Customers and addresses |
+| `customer_history` | A customer and all their orders |
+| `abandoned_carts` | Carts that never became orders |
+| `create_product` | Creates a product with its SKUs |
+| `update_product` | Edits product fields |
+| `manage_sku` | Creates a SKU, or updates price and stock |
+| `create_coupon` | Discount coupon |
+| `advance_order_status` ⚠️ | Moves an order to another status |
+| `add_order_comment` ⚠️ | Internal note on an order |
+| `manage_offers` | Cashback, order bump, upsell and free gift |
 
-⚠️ **Não validadas contra a API real.** As outras treze foram executadas ponta a ponta numa
-loja de verdade — criando produto, alterando preço, gravando estoque, emitindo cupom — e os
-nomes de campo saíram corrigidos desse processo. Estas duas exigem um pedido existente, e a
-loja de testes disponível não tinha nenhum. Os endpoints estão certos; o corpo da requisição
-vem da documentação, que nas outras cinco escritas se mostrou incompleta em pelo menos um
-campo obrigatório cada. Espere um 422 na primeira chamada — a mensagem dirá qual campo falta.
+⚠️ **Not validated against the live API.** The other thirteen were run end to end against a
+real store — creating a product, changing a price, writing stock, issuing a coupon — and their
+field names came out of that process corrected. These two need an existing order, and the test
+store had none. The endpoints are right; the request body comes from the documentation, which
+turned out to be missing at least one required field in every one of the other five writes.
+Expect a 422 on first call — the message will name the missing field.
 
-## O que ele deliberadamente não faz
+## What it deliberately does not do
 
-**Não cancela pedido, não estorna compra e não troca gateway de pagamento.** Não é uma
-funcionalidade desligada por variável de ambiente: o código não existe. São as operações
-irreversíveis da API, e o Claude Desktop e o claude.ai não suportam `elicitation` — ou seja,
-o servidor não teria como pedir confirmação de verdade. A ausência é a única garantia que não
-depende de alguém estar prestando atenção.
+**It does not cancel orders, refund purchases, or switch payment gateways.** Not a feature
+behind an environment variable: the code does not exist. These are the irreversible operations
+in the API, and neither Claude Desktop nor claude.ai supports `elicitation` — meaning the server
+has no way to genuinely ask for confirmation. Absence is the only guarantee that doesn't depend
+on someone paying attention.
 
-O veto é aplicado em dois pontos, ambos testados: no alias do status
-([`tools/escrita.ts`](src/tools/escrita.ts)) e na costura por onde toda requisição passa
-([`yampi.ts`](src/yampi.ts)). Detalhes em [`docs/adr/0002`](docs/adr/0002-acao-vedada-ausente-do-codigo.md).
+The ban is enforced in two places, both covered by tests: on the status alias
+([`tools/write.ts`](src/tools/write.ts)) and at the seam every request passes through
+([`yampi.ts`](src/yampi.ts)). Rationale in [`docs/adr/0002`](docs/adr/0002-forbidden-action-absent-from-code.md).
 
-Também ficou de fora o **rastreio de pedido**: a Yampi limita essa rota a 3 requisições por
-hora, o que torna a tool inutilizável na prática — duas chamadas e o agente trava por 20 minutos.
+Order tracking is also out: Yampi caps that route at 3 requests per hour, which makes the tool
+useless in practice — two calls and the agent is stuck for 20 minutes.
 
-## Suas credenciais
+## Your credentials
 
-- Ficam **cifradas** (AES-GCM) nas props da concessão OAuth, dentro do **seu** KV.
-- A chave que as cifra é envelopada por uma chave derivada do token de acesso, e o KV guarda
-  apenas o *hash* do token. **Um vazamento do KV sozinho não abre as credenciais.**
-- O Claude nunca as recebe: ele só vê um token opaco.
-- Revogar é apagar a concessão — as outras conexões continuam funcionando.
+- Stored **encrypted** (AES-GCM) in the OAuth grant props, inside **your** KV.
+- The key encrypting them is wrapped by a key derived from the access token, and KV only holds
+  the token's *hash*. **A KV leak alone does not open the credentials.**
+- Claude never receives them: it only ever sees an opaque token.
+- Revoking means deleting the grant — other connections keep working.
 
-O `/authorize` é público e valida credenciais, então é tecnicamente um oráculo para testar
-chaves roubadas. Por isso há limite de 5 tentativas por IP por minuto.
+`/authorize` is public and validates credentials, which technically makes it an oracle for
+testing stolen keys. Hence the limit of 5 attempts per IP per minute.
 
-Para restringir a instância a lojas específicas:
+To restrict the instance to specific stores:
 
 ```bash
-npx wrangler secret put LOJAS_PERMITIDAS   # ex.: minha-loja,outra-loja
+npx wrangler secret put ALLOWED_STORES   # e.g. my-store,other-store
 ```
 
-## Limites da API
+## API limits
 
-A Yampi limita por rota e por minuto: 30 req/min em produtos e SKUs, 120 em leitura de
-pedidos, 30 em escrita, 60 no geral. O servidor usa `include=` para trazer relacionamentos
-numa chamada só em vez de N+1, lê o `X-RateLimit-Remaining` de cada resposta e avisa o modelo
-quando a cota está acabando — em vez de deixá-lo descobrir com um 429.
+Yampi limits per route per minute: 30 req/min on products and SKUs, 120 on order reads, 30 on
+writes, 60 in general. The server uses `include=` to pull relationships in a single call instead
+of N+1, reads `X-RateLimit-Remaining` off every response, and warns the model when the quota is
+running out — rather than letting it find out through a 429.
 
-## Quando algo dá errado
+## When something goes wrong
 
-**403 em tudo, inclusive leitura.** A loja está com `active: false` no painel da Yampi. Loja
-inativa recusa qualquer rota. Reative no painel e reconecte o conector.
+**403 on everything, reads included.** The store is `active: false` in the Yampi dashboard.
+Inactive stores reject every route. Reactivate it, then reconnect the connector.
 
-**422 numa escrita.** A mensagem traz o campo exato que a Yampi recusou — o servidor repassa
-o objeto `errors` inteiro. Normalmente o Claude se corrige sozinho na tentativa seguinte.
+**422 on a write.** The message names the exact field Yampi rejected — the server forwards the
+whole `errors` object. Claude usually corrects itself on the next attempt.
 
-**"Concessão sem credencial".** O grant perdeu as props. Remova o conector e adicione de novo.
+**"Grant without credential".** The grant lost its props. Remove the connector and add it again.
 
-**Trocar de credencial.** Basta reconectar: uma nova concessão substitui a anterior. Para
-cortar o acesso sem reconectar, apague o namespace KV.
+**Switching credentials.** Just reconnect: a new grant replaces the old one. To cut access
+without reconnecting, delete the KV namespace.
 
-**Uma loja não aparece na lista.** Ou está inativa, ou a credencial não a alcança. Rode
-`descrever_loja` para ver o que o servidor enxerga.
+**A store is missing from the list.** Either it's inactive, or the credential doesn't reach it.
+Run `describe_store` to see what the server can see.
 
-## Peculiaridades da API da Yampi
+## Yampi API quirks
 
-Descobertas testando contra a API real, todas com potencial de queimar horas de quem for
-integrar. Ficam aqui porque não estão claras na documentação:
+Found by testing against the live API. All of them can burn hours, and none are clear from the
+documentation:
 
-- **Filtros exigem sintaxe de array.** `?status_id=4` é **ignorado em silêncio** e devolve a
-  base inteira; `?status_id[]=4` filtra. Vale também para `active[]`. Um filtro que não filtra
-  é pior que nenhum filtro: o agente resume 55 mil pedidos acreditando que viu os de julho.
-- **Datas usam um formato próprio**: `?date=created_at:2026-06-01|2026-06-30`. Qualquer outra
-  variação devolve 500 ou é ignorada.
-- **`filters[...]` não filtra.** Ele só troca a resposta para paginação por `scroll_id`.
-- **`/auth/me` é POST**, não GET, e devolve todas as lojas da credencial — porque a credencial
-  é do usuário, não da loja.
-- **`include` de pedidos tem enum fechado**: `items`, `customer`, `marketplace`, `status`,
-  `statuses`, `shipping_address`, `promocode`, `transactions`, `comments`, `files`,
-  `discounts`, `seller`, `labels`. `payments` não existe.
-- **GET é cacheado por 30 minutos** do lado da Yampi. Num contexto de agente isso mente:
-  criar um produto e pedir para relê-lo devolve o estado anterior. Este servidor manda
-  `?skipCache=true` em toda leitura.
-- **Estoque não é campo do SKU.** `quantity` no SKU fica sempre nulo — inclusive nos SKUs
-  reais de uma loja em produção. O estoque vive em `/logistics/stocks` (o depósito) cruzado
-  com o SKU em `/catalog/skus/{id}/stocks`. E `stock_id` **não** é o id de
-  `/logistics/warehouses`, que é outro recurso.
-- **`discount_type` de cupom aceita só `p` ou `v`**, não `percentage`/`fixed`.
-- **Datas de cupom exigem `Y-m-d H:i:s`.** Só a data devolve 422.
-- **`PUT /catalog/skus/{id}` exige `product_id` e `price_cost`** mesmo num update parcial.
-- **Criar produto exige `simple`, `brand_id` e `skus.*.blocked_sale`**, nenhum deles óbvio.
-- **Loja com `active: false` devolve 403 em tudo**, leitura inclusive. Este servidor filtra
-  essas lojas na hora de conectar, para não oferecer ao modelo uma opção que só sabe falhar.
-- **Erros 422 trazem um objeto `errors`** com o campo exato que falhou. Vale a pena repassar
-  ao modelo em vez de mostrar só o código — é o que o deixa se corrigir sozinho.
-- **Rastreio é limitado a 3 requisições por hora**, o que inviabiliza expô-lo como tool.
+- **Filters need array syntax.** `?status_id=4` is **silently ignored** and returns the entire
+  dataset; `?status_id[]=4` filters. Same for `active[]`. A filter that doesn't filter is worse
+  than no filter: the agent summarizes 55,000 orders believing it saw July's.
+- **Dates use a bespoke format**: `?date=created_at:2026-06-01|2026-06-30`. Anything else
+  returns 500 or is ignored.
+- **`filters[...]` does not filter.** It only switches the response to `scroll_id` pagination.
+- **`/auth/me` is POST**, not GET, and returns every store on the credential — because the
+  credential belongs to the user, not the store.
+- **Order `include` has a closed enum**: `items`, `customer`, `marketplace`, `status`,
+  `statuses`, `shipping_address`, `promocode`, `transactions`, `comments`, `files`, `discounts`,
+  `seller`, `labels`. There is no `payments`.
+- **GET responses are cached for 30 minutes** on Yampi's side. In an agent context that lies:
+  create a product, ask to read it back, and you get the previous state. This server sends
+  `?skipCache=true` on every read.
+- **Stock is not a SKU field.** `quantity` on a SKU is always null — including on the real SKUs
+  of a live store. Stock lives in `/logistics/stocks` (the stock location) joined to the SKU at
+  `/catalog/skus/{id}/stocks`. And `stock_id` is **not** the id from `/logistics/warehouses`,
+  which is a different resource entirely.
+- **Coupon `discount_type` accepts only `p` or `v`**, not `percentage`/`fixed`.
+- **Coupon dates require `Y-m-d H:i:s`.** Date alone returns 422.
+- **`PUT /catalog/skus/{id}` requires `product_id` and `price_cost`** even for a partial update.
+- **Creating a product requires `simple`, `brand_id` and `skus.*.blocked_sale`**, none of them obvious.
+- **A store with `active: false` returns 403 on everything**, reads included. This server filters
+  those stores out at connect time, so the model is never offered an option that can only fail.
+- **422 responses carry an `errors` object** naming the exact field that failed. Worth forwarding
+  to the model instead of showing only the status code — it's what lets it correct itself.
 
-## Desenvolvimento
+## Development
 
 ```bash
-npm test              # 32 testes de unidade, sem rede
+npm test              # 32 unit tests, no network
 npm run typecheck
 npm run dev           # wrangler dev
 ```
 
-### Testar contra a sua loja
+### Testing against your own store
 
-A suíte de unidade usa um `fetch` falso e prova a lógica do servidor. Ela não percebe se a
-Yampi mudar um endpoint, um nome de campo ou a sintaxe de um filtro — e isso já aconteceu
-durante o desenvolvimento deste projeto. Para essa metade existe um teste de integração
-contra a API real, **somente leitura**, que não cria nem altera nada:
+The unit suite uses a fake `fetch` and proves the server's logic. It cannot notice Yampi
+changing an endpoint, a field name or a filter syntax — and that happened repeatedly while this
+project was built. That other half is covered by an integration suite that hits the live API,
+**read-only**, creating and changing nothing:
 
 ```bash
-cp .env.example .env    # preencha com o alias e as credenciais da SUA loja
-npm run test:integracao
+cp .env.example .env    # fill in the alias and credentials of YOUR store
+npm run test:integration
 ```
 
-Ele verifica que a descoberta de lojas funciona, que os aliases de status existem, que o
-filtro por status realmente filtra, que o formato de data é aceito, que `include` expande
-relacionamentos e que os headers de cota chegam. Se algum falhar, a API mudou e o servidor
-vai mentir antes de quebrar.
+It checks that store discovery works, that status aliases exist, that filtering by status
+actually filters, that the date format is accepted, that `include` expands relationships, and
+that quota headers arrive. If one fails, the API changed and the server will start lying before
+it starts breaking.
 
-A arquitetura tem uma regra: **nenhuma tool fala HTTP**. Tudo passa por `src/yampi.ts`. É o
-que torna auditável a promessa de que o servidor não alcança as rotas vedadas — a superfície
-inteira cabe em um arquivo.
+The architecture has one rule: **no tool speaks HTTP**. Everything goes through
+[`src/yampi.ts`](src/yampi.ts). That's what makes the "does not reach the banned routes" promise
+auditable — the entire surface fits in one file.
 
-Vocabulário do projeto em [`CONTEXT.md`](CONTEXT.md). Decisões em [`docs/adr/`](docs/adr/).
+Project vocabulary in [`CONTEXT.md`](CONTEXT.md). Decisions in [`docs/adr/`](docs/adr/).
 
-## Limitações conhecidas
+## Known limitations
 
-- Não gerencia rastreio de pedido (limite de 3 req/h na Yampi inviabiliza).
-- Não mexe em banners, frete grátis, descontos progressivos nem combos.
-- `avancar_status_pedido` e `comentar_pedido` nunca foram executadas contra a API real.
-- Estoque é escrito no primeiro estoque cadastrado da loja. Quem usa vários depósitos precisa
-  ajustar `estoqueDaLoja()` em `src/tools/escrita.ts`.
+- No order tracking (Yampi's 3 req/h cap makes it unusable).
+- No banners, free shipping rules, progressive discounts or combos.
+- `advance_order_status` and `add_order_comment` were never run against the live API.
+- Stock is written to the store's first registered stock location. Anyone using multiple
+  locations needs to adjust `defaultStockId()` in `src/tools/write.ts`.
 
-## Licença
+## License
 
-MIT — veja [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

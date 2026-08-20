@@ -1,16 +1,16 @@
 {
   "name": "yampi-mcp",
   "version": "0.1.0",
-  "description": "Servidor MCP remoto para lojas Yampi, hospedado na Cloudflare",
+  "description": "Remote MCP server for Yampi stores, hosted on Cloudflare",
   "license": "MIT",
   "type": "module",
   "private": false,
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "vitest run --exclude test/integracao.test.ts",
+    "test": "vitest run --exclude test/integration.test.ts",
     "typecheck": "tsc --noEmit",
-    "test:integracao": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run test/integracao.test.ts"
+    "test:integration": "node --env-file-if-exists=.env ./node_modules/vitest/vitest.mjs run test/integration.test.ts"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.10.3",
