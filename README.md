@@ -195,6 +195,18 @@ Project vocabulary in [`CONTEXT.md`](CONTEXT.md). Decisions in [`docs/adr/`](doc
 - Stock is written to the store's first registered stock location. Anyone using multiple
   locations needs to adjust `defaultStockId()` in `src/tools/write.ts`.
 
+## Contributing
+
+Pull requests are welcome. Fork it, open a PR against `main`, and CI runs typecheck and the
+unit tests. For anything larger than a bug fix, open an issue first.
+
+One thing will not be merged regardless of patch quality: **anything that cancels an order,
+refunds a purchase, or switches payment gateway**, including indirect routes. That absence is
+the point of the project — reasoning in [ADR 0002](docs/adr/0002-forbidden-action-absent-from-code.md).
+
+Details in [CONTRIBUTING.md](CONTRIBUTING.md). Found a security issue? Do not open a public
+issue — see [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

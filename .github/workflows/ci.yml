@@ -1,0 +1,28 @@
+name: CI
+
+# `pull_request` (never `pull_request_target`): a PR from a fork runs with a
+# read-only token and no access to repository secrets. That is what makes it safe
+# to run a stranger's code here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # Unit tests only. The integration suite talks to the live Yampi API and
+      # needs a real Store Credential, so it never runs in CI — `npm test`
+      # already excludes it.
+      - run: npm test
