@@ -212,4 +212,51 @@ export function registerReadTools(server: McpServer, ctx: Context) {
       return result(ctx, `/${alias}/checkout/carts`, data);
     },
   );
+
+  server.registerTool(
+    "search_coupons",
+    {
+      title: "Search coupons",
+      description:
+        "Lists discount coupons and their usage, validity and restrictions. Filter by code/text or status.",
+      inputSchema: z.object({
+        store,
+        search: z.string().optional().describe("Coupon code or text to search for."),
+        active: z.boolean().optional().describe("Only active or inactive coupons."),
+        expired: z.boolean().optional().describe("Only expired or unexpired coupons."),
+        ...pageFields,
+      }),
+    },
+    async ({ store: s, search, active, expired, limit, page }) => {
+      const alias = at(s);
+      const data = await ctx.client.request<any>(alias, "/pricing/promocodes", {
+        include: ["customer", "categories", "collections", "brand", "products", "payments"],
+        query: {
+          limit,
+          page,
+          q: search,
+          active: active === undefined ? undefined : [active ? 1 : 0],
+          expired: expired === undefined ? undefined : [expired ? 1 : 0],
+        },
+      });
+      return result(ctx, `/${alias}/pricing/promocodes`, data);
+    },
+  );
+
+  server.registerTool(
+    "get_coupon",
+    {
+      title: "Get coupon",
+      description:
+        "Gets one discount coupon by ID, including customer, product, category, collection, brand and payment restrictions.",
+      inputSchema: z.object({ store, coupon_id: z.union([z.number(), z.string()]) }),
+    },
+    async ({ store: s, coupon_id }) => {
+      const alias = at(s);
+      const data = await ctx.client.request<any>(alias, `/pricing/promocodes/${coupon_id}`, {
+        include: ["customer", "categories", "collections", "brand", "products", "payments"],
+      });
+      return result(ctx, `/${alias}/pricing/promocodes`, data);
+    },
+  );
 }

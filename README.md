@@ -65,6 +65,8 @@ nothing gets written to the wrong store.
 | `search_customers` | Customers and addresses |
 | `customer_history` | A customer and all their orders |
 | `abandoned_carts` | Carts that never became orders |
+| `search_coupons` | Coupons filtered by code/text, active status or expiration |
+| `get_coupon` | One coupon with usage, validity and restrictions |
 | `create_product` | Creates a product with its SKUs |
 | `update_product` | Edits product fields |
 | `manage_sku` | Creates a SKU, or updates price and stock |

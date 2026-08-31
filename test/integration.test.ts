@@ -70,6 +70,25 @@ describe.skipIf(!configured)("Yampi API (real network, read-only)", () => {
     if ((r.data ?? []).length > 0) expect(r.data[0]).toHaveProperty("skus");
   });
 
+  it("lists coupons and gets one by ID", async () => {
+    const listed = await client.request<any>(alias!, "/pricing/promocodes", {
+      query: { limit: 1 },
+    });
+    expect(Array.isArray(listed.data)).toBe(true);
+
+    if (listed.data.length > 0) {
+      const filtered = await client.request<any>(alias!, "/pricing/promocodes", {
+        query: { limit: 10, q: listed.data[0].code },
+      });
+      expect(filtered.data.map((coupon: any) => coupon.code)).toContain(listed.data[0].code);
+
+      const coupon = await client.request<any>(alias!, `/pricing/promocodes/${listed.data[0].id}`, {
+        include: ["customer", "categories", "collections", "brand", "products", "payments"],
+      });
+      expect(coupon.data ?? coupon).toHaveProperty("id", listed.data[0].id);
+    }
+  });
+
   it("exposes the route quota in the headers", async () => {
     await client.request(alias!, "/catalog/brands", { query: { limit: 1 } });
     // Without the header the quota warning never fires and the model only learns about the limit on a 429.
