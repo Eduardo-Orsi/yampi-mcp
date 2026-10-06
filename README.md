@@ -227,3 +227,5 @@ MIT — see [LICENSE](LICENSE).
 The Yampi logo in `assets/` is Yampi's trademark, used here only to identify which platform
 this server talks to. It is not covered by the MIT license and this project is not affiliated
 with or endorsed by Yampi.
+
+[![M8ven Score](https://m8ven.ai/badge/mcp/eduardo-orsi-yampi-mcp-1cqn0m?v=127b4554158791c614d5c8885cd40df8)](https://m8ven.ai/mcp/eduardo-orsi-yampi-mcp-1cqn0m?s=readme)
