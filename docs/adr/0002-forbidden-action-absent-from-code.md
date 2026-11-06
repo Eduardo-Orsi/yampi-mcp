@@ -23,7 +23,9 @@ why the decision is enforced in two places, both covered by tests:
    ID — status IDs are store data, not universal constants.
 2. `FORBIDDEN_ROUTES` in `yampi.ts`, at the seam every request passes through, so that a
    future bug cannot reach those routes by another path. It applies only to state-changing
-   methods: reading the gateway configuration is legitimate, switching it is not.
+   methods: reading the gateway configuration is legitimate, switching it is not. This covers
+   confirming, capturing and cancelling a payment too, because those move real money just the
+   same. The patterns follow the routes in Yampi's OpenAPI, and the tests name those routes.
 
 Anyone who disagrees is one command away from a fork. A guarantee that can be switched off by
 an environment variable is not a guarantee.

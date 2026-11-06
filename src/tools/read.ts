@@ -2,6 +2,93 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { pageFields, resolveStore, result, storeField, toolError, type Context } from "./common";
 
+const TRANSACTION_STATUSES = [
+  "waiting_payment",
+  "authorized",
+  "paid",
+  "refused",
+  "cancelled",
+  "handling_products",
+] as const;
+
+/**
+ * Yampi ignores `status=`, `status[]=`, `customer_id=` and `filters[...]` on
+ * transactions and silently returns the whole dataset. Only the `search=field:value`
+ * syntax filters, and several fields need `searchJoin=and` or they are OR-ed.
+ */
+export function transactionSearch(filters: {
+  status?: string;
+  payment_id?: number;
+  customer_id?: number;
+}): { search?: string; searchJoin?: string } {
+  const terms = Object.entries(filters)
+    .filter(([, value]) => value !== undefined)
+    .map(([field, value]) => `${field}:${value}`);
+  if (terms.length === 0) return {};
+  return { search: terms.join(";"), searchJoin: terms.length > 1 ? "and" : undefined };
+}
+
+/**
+ * Yampi silently ignores a `date` without both ends and returns the whole dataset,
+ * so a single day has to be sent as a range of one.
+ */
+export function transactionDateFilter(from?: string, to?: string): string | undefined {
+  return from ? `created_at:${from}|${to ?? from}` : undefined;
+}
+
+/**
+ * What a payment diagnosis needs, as an allowlist. A transaction also carries the
+ * cardholder's tax ID, the Pix code and boleto links; none of that explains a
+ * failure, and an allowlist keeps fields Yampi adds later out of the conversation.
+ */
+export function transactionView(t: any) {
+  const when = (timestamp: any) => timestamp?.date ?? timestamp ?? null;
+  return {
+    id: t.id,
+    status: t.status,
+    error_code: t.error_code,
+    error_message: t.error_message,
+    amount: t.amount,
+    buyer_amount: t.buyer_amount,
+    installments: t.installments,
+    payment_id: t.payment_id,
+    payment: t.payment?.data?.name ?? null,
+    customer_id: t.customer_id,
+    authorized: t.authorized,
+    captured: t.captured,
+    cancelled: t.cancelled,
+    antifraud_status: t.antifraud_status,
+    antifraud_score: t.antifraud_score,
+    gateway_transaction_id: t.gateway_transaction_id,
+    total_logs: t.total_logs,
+    created_at: when(t.created_at),
+    authorized_at: when(t.authorized_at),
+    captured_at: when(t.captured_at),
+    cancelled_at: when(t.cancelled_at),
+  };
+}
+
+export type CashbackPeriod = "today" | "yesterday" | "month" | "last_month" | "year" | "custom";
+
+/** The period of the cashback report. Returns a string when the combination is invalid. */
+export function cashbackPeriodQuery(
+  period: CashbackPeriod,
+  starts_at?: string,
+  ends_at?: string,
+): Record<string, string> | string {
+  if (period === "custom") {
+    if (!starts_at || !ends_at) return "The `custom` period needs both `starts_at` and `ends_at`.";
+    // Yampi requires Y-m-d H:i:s.
+    return {
+      filter: period,
+      start_at: `${starts_at} 00:00:00`,
+      end_at: `${ends_at} 23:59:59`,
+    };
+  }
+  if (starts_at || ends_at) return "`starts_at` and `ends_at` only apply to the `custom` period.";
+  return { filter: period };
+}
+
 /** Read tools: they only query the Store. Always available. */
 export function registerReadTools(server: McpServer, ctx: Context) {
   const store = storeField(ctx.stores);
@@ -257,6 +344,174 @@ export function registerReadTools(server: McpServer, ctx: Context) {
         include: ["customer", "categories", "collections", "brand", "products", "payments"],
       });
       return result(ctx, `/${alias}/pricing/promocodes`, data);
+    },
+  );
+
+  server.registerTool(
+    "search_kits",
+    {
+      title: "Search kits",
+      description: "Lists product kits (bundles) with their items, pricing rules and shipping settings.",
+      inputSchema: z.object({
+        store,
+        search: z.string().optional().describe("Text in the kit name."),
+        ...pageFields,
+      }),
+    },
+    async ({ store: s, search, limit, page }) => {
+      const alias = at(s);
+      const data = await ctx.client.request<any>(alias, "/catalog/bundles", {
+        query: { limit, page, q: search },
+      });
+      return result(ctx, `/${alias}/catalog/bundles`, data);
+    },
+  );
+
+  server.registerTool(
+    "get_kit",
+    {
+      title: "Get kit",
+      description: "One product kit (bundle) with its items, pricing rules, shipping settings and purchase link.",
+      inputSchema: z.object({ store, kit_id: z.union([z.number(), z.string()]) }),
+    },
+    async ({ store: s, kit_id }) => {
+      const alias = at(s);
+      const data = await ctx.client.request<any>(alias, `/catalog/bundles/${kit_id}`);
+      return result(ctx, `/${alias}/catalog/bundles`, data);
+    },
+  );
+
+  server.registerTool(
+    "search_transactions",
+    {
+      title: "Search transactions",
+      description:
+        "Payment attempts across all orders, newest first, with status, gateway error and antifraud result. " +
+        'Use it for questions like "why are card payments failing today?". Read-only: it cannot change a payment.',
+      inputSchema: z.object({
+        store,
+        status: z.enum(TRANSACTION_STATUSES).optional(),
+        payment_id: z.number().int().optional().describe("Payment method ID, as returned on a transaction."),
+        customer_id: z.number().int().optional(),
+        created_from: z.string().optional().describe("Start date, YYYY-MM-DD."),
+        created_to: z
+          .string()
+          .optional()
+          .describe("End date, YYYY-MM-DD. Without it, only the created_from day is matched."),
+        ...pageFields,
+      }),
+    },
+    async ({ store: s, status, payment_id, customer_id, created_from, created_to, limit, page }) => {
+      const alias = at(s);
+      if (created_to && !created_from) return toolError("`created_to` also needs `created_from`.");
+
+      const data = await ctx.client.request<any>(alias, "/checkout/transactions", {
+        include: ["payment"],
+        query: {
+          limit,
+          page,
+          ...transactionSearch({ status, payment_id, customer_id }),
+          date: transactionDateFilter(created_from, created_to),
+        },
+      });
+      return result(ctx, `/${alias}/checkout/transactions`, {
+        data: (data.data ?? []).map(transactionView),
+        meta: data.meta,
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_transaction",
+    {
+      title: "Get transaction",
+      description:
+        "One payment attempt with its status, gateway error and antifraud result, plus its logs. " +
+        "Yampi only logs capture and cancellation attempts, so the reason for a refusal is in `error_message`.",
+      inputSchema: z.object({ store, transaction_id: z.union([z.number(), z.string()]) }),
+    },
+    async ({ store: s, transaction_id }) => {
+      const alias = at(s);
+      const [transaction, logs] = await Promise.all([
+        ctx.client.request<any>(alias, `/checkout/transactions/${transaction_id}`, {
+          include: ["payment"],
+        }),
+        ctx.client.request<any>(alias, `/checkout/transactions/${transaction_id}/logs`, {
+          query: { limit: 50 },
+        }),
+      ]);
+      return result(ctx, `/${alias}/checkout/transactions`, {
+        transaction: transactionView(transaction.data),
+        logs: logs.data ?? [],
+      });
+    },
+  );
+
+  server.registerTool(
+    "customer_cashback",
+    {
+      title: "Customer cashback",
+      description:
+        "One customer's cashback balance and statement, oldest entry first. " +
+        "Use search_customers first to find the `customer_id`.",
+      inputSchema: z.object({ store, customer_id: z.number().int(), ...pageFields }),
+    },
+    async ({ store: s, customer_id, limit, page }) => {
+      const alias = at(s);
+      const [balance, statement] = await Promise.all([
+        ctx.client.request<any>(alias, "/pricing/wallet/balance", { query: { customer_id } }),
+        ctx.client.request<any>(alias, `/pricing/wallet/statement/${customer_id}`, {
+          query: { limit, page },
+        }),
+      ]);
+      return result(ctx, `/${alias}/pricing/wallet`, {
+        customer_id,
+        balance: balance.data?.balance ?? null,
+        // Each entry repeats the customer's name, e-mail and phone; the caller already has the ID.
+        statement: (statement.data ?? []).map(({ customer: _customer, ...entry }: any) => entry),
+        meta: statement.meta,
+      });
+    },
+  );
+
+  server.registerTool(
+    "cashback_report",
+    {
+      title: "Cashback report",
+      description:
+        "Cashback results for a period: cashback generated and used, orders with cashback and their value, " +
+        "share of orders with cashback, and average time until it is used.",
+      inputSchema: z.object({
+        store,
+        period: z.enum(["today", "yesterday", "month", "last_month", "year", "custom"]).default("month"),
+        starts_at: z.string().optional().describe("Start date, YYYY-MM-DD. Only for the `custom` period."),
+        ends_at: z.string().optional().describe("End date, YYYY-MM-DD. Only for the `custom` period."),
+        daily: z.boolean().default(false).describe("Include the day-by-day breakdown."),
+      }),
+    },
+    async ({ store: s, period, starts_at, ends_at, daily }) => {
+      const alias = at(s);
+      const query = cashbackPeriodQuery(period, starts_at, ends_at);
+      if (typeof query === "string") return toolError(query);
+
+      const widget = (name: string) =>
+        ctx.client.request<any>(alias, `/metrics/cashback/${name}`, { query });
+      const [orders, generated, share, timeToUse] = await Promise.all([
+        widget("orders-with-cashback"),
+        widget("cashback-generated"),
+        widget("order-percentage"),
+        widget("average-time-use"),
+      ]);
+      const totals = ({ data, start_at: _start, end_at: _end, ...sums }: any) =>
+        daily ? { ...sums, daily: data } : sums;
+
+      return result(ctx, `/${alias}/metrics/cashback`, {
+        period: { starts_at: generated.start_at, ends_at: generated.end_at },
+        cashback: generated.data,
+        orders_with_cashback: totals(orders),
+        share_of_orders: totals(share),
+        average_time_to_use: timeToUse.data,
+      });
     },
   );
 }

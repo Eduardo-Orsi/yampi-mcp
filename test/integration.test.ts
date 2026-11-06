@@ -89,6 +89,44 @@ describe.skipIf(!configured)("Yampi API (real network, read-only)", () => {
     }
   });
 
+  it("returns kits with their items, the field an edit depends on", async () => {
+    const listed = await client.request<any>(alias!, "/catalog/bundles", { query: { limit: 1 } });
+    expect(Array.isArray(listed.data)).toBe(true);
+    if (listed.data.length > 0) {
+      const kit = await client.request<any>(alias!, `/catalog/bundles/${listed.data[0].id}`);
+      expect(Array.isArray(kit.data.items.data)).toBe(true);
+    }
+  });
+
+  it("actually filters transactions through search=field:value", async () => {
+    // `status=refused` is silently ignored and returns the whole dataset.
+    const r = await client.request<any>(alias!, "/checkout/transactions", {
+      query: { limit: 20, search: "status:refused" },
+    });
+    for (const t of r.data ?? []) expect(t.status).toBe("refused");
+  });
+
+  it("reads a customer's cashback balance", async () => {
+    const customers = await client.request<any>(alias!, "/customers", { query: { limit: 1 } });
+    if (customers.data?.length > 0) {
+      const id = customers.data[0].id;
+      const balance = await client.request<any>(alias!, "/pricing/wallet/balance", {
+        query: { customer_id: id },
+      });
+      expect(typeof balance.data.balance).toBe("number");
+    }
+  });
+
+  it("accepts the cashback report periods", async () => {
+    for (const query of [
+      { filter: "month" },
+      { filter: "custom", start_at: "2026-01-01 00:00:00", end_at: "2026-01-31 23:59:59" },
+    ]) {
+      const r = await client.request<any>(alias!, "/metrics/cashback/cashback-generated", { query });
+      expect(r.data).toHaveProperty("total_cashback_generated");
+    }
+  });
+
   it("exposes the route quota in the headers", async () => {
     await client.request(alias!, "/catalog/brands", { query: { limit: 1 } });
     // Without the header the quota warning never fires and the model only learns about the limit on a 429.
