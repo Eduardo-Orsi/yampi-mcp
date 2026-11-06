@@ -18,6 +18,11 @@ const FORBIDDEN_ROUTES: RegExp[] = [
   /\/transactions\/[^/]+\/(refund|estorno)/i,
   /\/payments?\/gateways/i,
   /\/payment[-_]?configurations/i,
+  // Confirming, capturing or cancelling a payment moves real money.
+  /\/checkout\/transactions\/[^/]+\/payment\b/i,
+  // Gateway and payment-method settings decide how the Store charges.
+  /\/checkout\/gateways\b/i,
+  /\/checkout\/payments\b/i,
 ];
 
 export class YampiError extends Error {
@@ -44,7 +49,8 @@ export class ForbiddenActionError extends YampiError {
   constructor(route: string) {
     super(
       `Route forbidden by design: ${route}. This server does not cancel orders, does not refund ` +
-        `purchases and does not switch payment gateways. Use the Yampi dashboard.`,
+        `purchases, does not change a payment's state and does not switch payment gateways or their ` +
+        `settings. Use the Yampi dashboard.`,
       403,
     );
   }

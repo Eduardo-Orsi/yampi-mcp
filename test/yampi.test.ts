@@ -28,16 +28,47 @@ describe("Forbidden Action at the seam", () => {
     "/transactions/abc/refund",
     "/payments/gateways",
     "/payment-configurations/9",
+    // The routes as Yampi's OpenAPI actually spells them.
+    "/checkout/transactions/1/payment/cancel",
+    "/checkout/transactions/1/payment/confirm",
+    "/checkout/transactions/1/payment/gateway/cancel",
+    "/checkout/transactions/1/payment/gateway/capture",
+    "/checkout/gateways/some-gateway",
+    "/checkout/payments/1/config",
+    "/checkout/payments/1/config/2",
+    "/checkout/payments/1/installments",
   ];
 
   it.each(forbidden)("refuses %s on a state-changing method", async (path) => {
     const { impl, calls } = fakeFetch();
     const client = new YampiClient(credentials, impl);
-    await expect(client.request("store-a", path, { method: "POST" })).rejects.toThrow(
-      ForbiddenActionError,
-    );
+    for (const method of ["POST", "PUT", "DELETE"] as const) {
+      await expect(client.request("store-a", path, { method })).rejects.toThrow(ForbiddenActionError);
+    }
     expect(calls).toHaveLength(0); // it never even left the machine
   });
+
+  it.each([
+    "/checkout/transactions",
+    "/checkout/transactions/1/logs",
+    "/checkout/gateways",
+    "/checkout/payments/1/config",
+  ])("allows reading %s: diagnosing a payment changes nothing", async (path) => {
+    const { impl, calls } = fakeFetch({ body: { data: [] } });
+    const client = new YampiClient(credentials, impl);
+    await client.request("store-a", path);
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each(["/catalog/bundles/1", "/pricing/promocodes/1"])(
+    "does not catch the Reversible Write %s in the net",
+    async (path) => {
+      const { impl, calls } = fakeFetch({ body: { data: {} } });
+      const client = new YampiClient(credentials, impl);
+      await client.request("store-a", path, { method: "PUT", body: {} });
+      expect(calls).toHaveLength(1);
+    },
+  );
 
   it("allows GET on the same routes: reading the gateway configuration is legitimate", async () => {
     const { impl, calls } = fakeFetch({ body: { data: [] } });
