@@ -67,24 +67,34 @@ nothing gets written to the wrong store.
 | `abandoned_carts` | Carts that never became orders |
 | `search_coupons` | Coupons filtered by code/text, active status or expiration |
 | `get_coupon` | One coupon with usage, validity and restrictions |
+| `search_kits` | Product kits with their items, pricing rules and shipping |
+| `get_kit` | One kit with its items and purchase link |
+| `search_transactions` | Payment attempts across all orders, by status, method, customer and period |
+| `get_transaction` | One payment attempt with its gateway error, antifraud result and logs |
+| `customer_cashback` | A customer's cashback balance and statement |
+| `cashback_report` | Cashback generated and used, orders with cashback and time to use, for a period |
 | `create_product` | Creates a product with its SKUs |
 | `update_product` | Edits product fields |
 | `manage_sku` | Creates a SKU, or updates price and stock |
 | `create_coupon` | Discount coupon |
+| `update_coupon` | Edits, extends or deactivates a coupon |
+| `create_kit` | Creates a kit from existing SKUs |
+| `update_kit` | Edits or deactivates a kit, keeping whatever was not sent |
 | `advance_order_status` ⚠️ | Moves an order to another status |
 | `add_order_comment` ⚠️ | Internal note on an order |
 | `manage_offers` | Cashback, order bump, upsell and free gift |
 
-⚠️ **Not validated against the live API.** The other thirteen were run end to end against a
+⚠️ **Not validated against the live API.** The other tools were run end to end against a
 real store — creating a product, changing a price, writing stock, issuing a coupon — and their
 field names came out of that process corrected. These two need an existing order, and the test
 store had none. The endpoints are right; the request body comes from the documentation, which
-turned out to be missing at least one required field in every one of the other five writes.
+turned out to be missing at least one required field in every one of the original five writes.
 Expect a 422 on first call — the message will name the missing field.
 
 ## What it deliberately does not do
 
-**It does not cancel orders, refund purchases, or switch payment gateways.** Not a feature
+**It does not cancel orders, refund purchases, change a payment's state, or switch payment
+gateways or their settings.** Not a feature
 behind an environment variable: the code does not exist. These are the irreversible operations
 in the API, and neither Claude Desktop nor claude.ai supports `elicitation` — meaning the server
 has no way to genuinely ask for confirmation. Absence is the only guarantee that doesn't depend
@@ -162,6 +172,19 @@ documentation:
   which is a different resource entirely.
 - **Coupon `discount_type` accepts only `p` or `v`**, not `percentage`/`fixed`.
 - **Coupon dates require `Y-m-d H:i:s`.** Date alone returns 422.
+- **Transaction filters only work as `search=field:value`.** `status=`, `status[]=`, `customer_id=`
+  and `filters[...]` are silently ignored and return everything. Several fields go as
+  `search=status:refused;payment_id:3&searchJoin=and`; without `searchJoin` they are OR-ed.
+- **A transaction `date` needs both ends.** `created_at:2026-10-15` returns every transaction, while
+  the same value filters on orders. Send `created_at:2026-10-15|2026-10-15`.
+- **Transaction logs only cover capture and cancellation.** The reason for a refusal is in the
+  transaction's `error_message`.
+- **`PUT /catalog/bundles/{id}` requires the whole kit, and `items` replaces the list.** Its response
+  shows the old items, and the `POST` response shows none, so read the kit back after writing.
+- **`PUT /pricing/promocodes/{id}` requires the same fields as creating one.** A `GET` returns money
+  as strings and dates as objects, so neither can be sent back as is.
+- **The cashback report requires `filter`**: `today`, `yesterday`, `month`, `last_month`, `year` or
+  `custom`, the last with `start_at` and `end_at` as `Y-m-d H:i:s`. The API documentation lists none of this.
 - **`PUT /catalog/skus/{id}` requires `product_id` and `price_cost`** even for a partial update.
 - **Creating a product requires `simple`, `brand_id` and `skus.*.blocked_sale`**, none of them obvious.
 - **A store with `active: false` returns 403 on everything**, reads included. This server filters
@@ -172,7 +195,7 @@ documentation:
 ## Development
 
 ```bash
-npm test              # 32 unit tests, no network
+npm test              # 66 unit tests, no network
 npm run typecheck
 npm run dev           # wrangler dev
 ```
@@ -190,8 +213,8 @@ npm run test:integration
 ```
 
 It checks that store discovery works, that status aliases exist, that filtering by status
-actually filters, that the date format is accepted, that `include` expands relationships, and
-that quota headers arrive. If one fails, the API changed and the server will start lying before
+actually filters, that the date format is accepted, that `include` expands relationships, that
+kits, transaction filters and cashback reads keep their shape, and that quota headers arrive. If one fails, the API changed and the server will start lying before
 it starts breaking.
 
 The architecture has one rule: **no tool speaks HTTP**. Everything goes through
@@ -204,6 +227,9 @@ Project vocabulary in [`CONTEXT.md`](CONTEXT.md). Decisions in [`docs/adr/`](doc
 
 - No order tracking (Yampi's 3 req/h cap makes it unusable).
 - No banners, free shipping rules, progressive discounts or combos.
+- Writing to a customer's cashback wallet is not exposed: the tools only read it.
+- Kits and coupons cannot be deleted through the server; deactivate them instead.
+- `get_transaction` logs were only ever seen empty, so their format comes from the documentation.
 - `advance_order_status` and `add_order_comment` were never run against the live API.
 - Stock is written to the store's first registered stock location. Anyone using multiple
   locations needs to adjust `defaultStockId()` in `src/tools/write.ts`.

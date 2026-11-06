@@ -57,6 +57,117 @@ async function setStock(ctx: Context, alias: string, skuId: number | string, qua
       });
 }
 
+const KIT_ITEM = z.object({
+  sku_id: z.number().int(),
+  price_type: z
+    .enum(["sku", "discount", "custom"])
+    .describe("sku = the SKU's own price; discount = % off the SKU's price; custom = fixed `price`."),
+  price: z.number().optional().describe("Fixed price. Required when price_type is `custom`."),
+  discount: z.number().optional().describe("Percentage off. Required when price_type is `discount`."),
+  quantity: z.number().int().min(1),
+});
+
+const KIT_FIELDS = {
+  active: z.boolean().optional(),
+  modifiable: z.boolean().optional().describe("Whether the customer may change the items before buying."),
+  custom_shipping: z.boolean().optional().describe("Use the kit's own shipping instead of the store's."),
+  shipping_type: z.enum(["fixed", "free"]).optional().describe("Only applies with custom_shipping."),
+  shipping_price: z.number().optional().describe("Required when shipping_type is `fixed`."),
+  shipping_days: z.number().int().optional().describe("Required when custom_shipping is true."),
+};
+
+export interface KitFields {
+  name?: string;
+  image_url?: string;
+  active?: boolean;
+  modifiable?: boolean;
+  custom_shipping?: boolean;
+  shipping_type?: string | null;
+  shipping_price?: number;
+  shipping_days?: number;
+  items?: z.infer<typeof KIT_ITEM>[];
+}
+
+/** Keeps the fields the caller actually sent, so a merge cannot overwrite data with `undefined`. */
+function sent<T extends object>(changes: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(changes).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
+
+/** The request body of a kit. Yampi rejects shipping settings on a kit that uses the store's shipping. */
+export function kitBody(fields: KitFields) {
+  const { shipping_type, shipping_price, shipping_days, ...rest } = fields;
+  return rest.custom_shipping ? { ...rest, shipping_type, shipping_price, shipping_days } : rest;
+}
+
+/**
+ * `PUT /catalog/bundles/{id}` demands the whole kit, and `items` replaces the list:
+ * sending only what changed would either fail or empty the kit. So an edit is the
+ * current kit with the changes on top. Returns null if the current kit came back
+ * without its items, because writing from that would delete them.
+ */
+export function mergeKit(current: any, changes: KitFields): KitFields | null {
+  const items = current?.items?.data;
+  if (!Array.isArray(items) && !changes.items) return null;
+  return {
+    name: current.name,
+    image_url: current.image_url,
+    active: current.active,
+    modifiable: current.modifiable,
+    custom_shipping: current.custom_shipping,
+    shipping_type: current.shipping_type,
+    shipping_price: current.shipping_price,
+    shipping_days: current.shipping_days,
+    items: (items ?? []).map((item: any) => ({
+      sku_id: item.sku_id,
+      price_type: item.price_type,
+      quantity: item.quantity,
+      ...(item.price_type === "custom" ? { price: item.price } : {}),
+      ...(item.price_type === "discount" ? { discount: item.discount } : {}),
+    })),
+    ...sent(changes),
+  };
+}
+
+/**
+ * `PUT /pricing/promocodes/{id}` requires the same fields as creating a coupon, so
+ * an edit is the current coupon with the changes on top. Yampi returns money as
+ * strings and dates as objects with microseconds; neither is accepted back.
+ */
+export function mergeCoupon(current: any, changes: Record<string, unknown>) {
+  const dateTime = (value: any) => String(value?.date ?? value).slice(0, 19);
+  return {
+    code: current.code,
+    active: current.active,
+    discount_type: current.discount_type,
+    value: Number(current.value),
+    min_value: Number(current.min_value),
+    quantity: current.quantity,
+    start_at: dateTime(current.start_at),
+    end_at: dateTime(current.end_at),
+    for_the_price_of: current.for_the_price_of,
+    accumulate: current.accumulate,
+    once_per_customer: current.once_per_customer,
+    abandoned_cart: current.abandoned_cart,
+    newsletter: current.newsletter,
+    free_shipment: current.free_shipment,
+    ignore_promotion_products: current.ignore_promotion_products,
+    freebie_id: current.freebie_id,
+    advertise: current.advertise,
+    ...sent(changes),
+  };
+}
+
+/** Yampi's write responses leave out or misreport a kit's items, so the answer comes from a fresh read. */
+async function readKit(ctx: Context, alias: string, kitId: number | string) {
+  return result(
+    ctx,
+    `/${alias}/catalog/bundles`,
+    await ctx.client.request<any>(alias, `/catalog/bundles/${kitId}`),
+  );
+}
+
 /** Reversible Write tools: they change the Store, and the Merchant can undo them from the dashboard. */
 export function registerWriteTools(server: McpServer, ctx: Context) {
   const store = storeField(ctx.stores);
@@ -254,6 +365,112 @@ export function registerWriteTools(server: McpServer, ctx: Context) {
         },
       });
       return result(ctx, `/${alias}/pricing/promocodes`, data);
+    },
+  );
+
+  server.registerTool(
+    "update_coupon",
+    {
+      title: "Update coupon",
+      description:
+        "Changes an existing coupon, including deactivating it or extending its validity. Send only what changes.",
+      inputSchema: z.object({
+        store,
+        coupon_id: z.union([z.number(), z.string()]),
+        active: z.boolean().optional().describe("false deactivates the coupon."),
+        code: z.string().min(1).optional(),
+        type: z.enum(["percentage", "fixed"]).optional(),
+        value: z.number().positive().optional(),
+        min_value: z.number().optional(),
+        quantity: z.number().int().optional().describe("Usage limit."),
+        starts_at: z.string().optional().describe("Start of validity, YYYY-MM-DD."),
+        ends_at: z.string().optional().describe("End of validity, YYYY-MM-DD."),
+        extra_fields: extraFields,
+      }),
+    },
+    async ({ store: s, coupon_id, type, starts_at, ends_at, extra_fields, active, code, value, min_value, quantity }) => {
+      const alias = at(s);
+      const changes = sent({
+        active,
+        code,
+        value,
+        min_value,
+        quantity,
+        discount_type: type && (type === "percentage" ? "p" : "v"),
+        start_at: starts_at && `${starts_at} 00:00:00`,
+        end_at: ends_at && `${ends_at} 23:59:59`,
+        ...(extra_fields ?? {}),
+      });
+      if (Object.keys(changes).length === 0) return toolError("Nothing to update: provide at least one field.");
+
+      const current = await ctx.client.request<any>(alias, `/pricing/promocodes/${coupon_id}`);
+      const data = await ctx.client.request<any>(alias, `/pricing/promocodes/${coupon_id}`, {
+        method: "PUT",
+        body: mergeCoupon(current.data, changes),
+      });
+      return result(ctx, `/${alias}/pricing/promocodes`, data);
+    },
+  );
+
+  server.registerTool(
+    "create_kit",
+    {
+      title: "Create kit",
+      description:
+        "Creates a product kit (bundle) from existing SKUs. Reversible: it can be deactivated with update_kit. " +
+        "Use get_product to find the `sku_id` of each item.",
+      inputSchema: z.object({
+        store,
+        name: z.string().min(1).describe("Must be unique in the store."),
+        image_url: z.string().url().describe("Required by Yampi."),
+        items: z.array(KIT_ITEM).min(1),
+        ...KIT_FIELDS,
+      }),
+    },
+    async ({ store: s, ...fields }) => {
+      const alias = at(s);
+      const created = await ctx.client.request<any>(alias, "/catalog/bundles", {
+        method: "POST",
+        body: kitBody(fields),
+      });
+      return readKit(ctx, alias, created.data.id);
+    },
+  );
+
+  server.registerTool(
+    "update_kit",
+    {
+      title: "Update kit",
+      description:
+        "Changes an existing product kit, including deactivating it. Send only what changes. " +
+        "`items`, when sent, REPLACES the kit's whole item list: to change one item, send all of them.",
+      inputSchema: z.object({
+        store,
+        kit_id: z.union([z.number(), z.string()]),
+        name: z.string().min(1).optional(),
+        image_url: z.string().url().optional(),
+        items: z.array(KIT_ITEM).min(1).optional(),
+        ...KIT_FIELDS,
+      }),
+    },
+    async ({ store: s, kit_id, ...fields }) => {
+      const alias = at(s);
+      const changes = sent(fields);
+      if (Object.keys(changes).length === 0) return toolError("Nothing to update: provide at least one field.");
+
+      const current = await ctx.client.request<any>(alias, `/catalog/bundles/${kit_id}`);
+      const merged = mergeKit(current.data, changes);
+      if (!merged) {
+        return toolError(
+          `Yampi returned kit ${kit_id} without its items, so it was left unchanged. ` +
+            "Saving now could erase them. Send the full `items` list to update it.",
+        );
+      }
+      await ctx.client.request(alias, `/catalog/bundles/${kit_id}`, {
+        method: "PUT",
+        body: kitBody(merged),
+      });
+      return readKit(ctx, alias, kit_id);
     },
   );
 

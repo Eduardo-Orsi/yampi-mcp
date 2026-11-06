@@ -44,7 +44,7 @@ _Avoid_: query, lookup, read-only
 
 **Reversible Write**:
 An operation that changes the Store and whose effect the Merchant can undo from the Yampi
-dashboard — creating and editing a product, SKU, stock, coupon.
+dashboard — creating and editing a product, SKU, stock, coupon, kit.
 _Avoid_: mutation, safe write
 
 **Forbidden Action**:
