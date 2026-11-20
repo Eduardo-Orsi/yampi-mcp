@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kitBody, mergeCoupon, mergeKit, refuseIfForbidden } from "../src/tools/write";
+import { kitBody, mergeCoupon, mergeKit, refuseIfForbidden, skuUpdateBody } from "../src/tools/write";
 import { cashbackPeriodQuery, transactionDateFilter, transactionSearch, transactionView } from "../src/tools/read";
 import { resolveStore } from "../src/tools/common";
 import { grantId } from "../src/authorize";
@@ -99,6 +99,24 @@ describe("coupon edits", () => {
 
   it("applies a change over the current value", () => {
     expect(mergeCoupon(current, { end_at: "2027-01-31 23:59:59" }).end_at).toBe("2027-01-31 23:59:59");
+  });
+});
+
+describe("SKU updates", () => {
+  it("forwards every selected variation value in the format Yampi requires", () => {
+    expect(
+      skuUpdateBody({
+        product_id: 42,
+        sale_price: 129.99,
+        cost_price: 0,
+        variations_values_ids: [101, 202],
+      }),
+    ).toEqual({
+      product_id: 42,
+      price_sale: 129.99,
+      price_cost: 0,
+      variations_values_ids: [101, 202],
+    });
   });
 });
 

@@ -88,6 +88,23 @@ export interface KitFields {
   items?: z.infer<typeof KIT_ITEM>[];
 }
 
+export interface SkuUpdateFields {
+  product_id: number | string;
+  sale_price?: number;
+  cost_price: number;
+  variations_values_ids: Array<number | string>;
+}
+
+/** Yampi expects one selected value id per product variation on SKU updates. */
+export function skuUpdateBody(fields: SkuUpdateFields) {
+  return {
+    product_id: fields.product_id,
+    price_sale: fields.sale_price,
+    price_cost: fields.cost_price,
+    variations_values_ids: fields.variations_values_ids,
+  };
+}
+
 /** Keeps the fields the caller actually sent, so a merge cannot overwrite data with `undefined`. */
 function sent<T extends object>(changes: T): Partial<T> {
   return Object.fromEntries(
@@ -280,6 +297,13 @@ export function registerWriteTools(server: McpServer, ctx: Context) {
               sku: z.string().optional().describe("Code, required when creating."),
               sale_price: z.number().optional(),
               cost_price: z.number().optional().describe("Yampi requires this field when updating."),
+              variations_values_ids: z
+                .array(z.union([z.number().int(), z.string()]))
+                .min(1)
+                .optional()
+                .describe(
+                  "Required when updating price. Use get_product and send one variations[].value_id per product variation.",
+                ),
               stock: z.number().int().optional(),
             }),
           )
@@ -316,9 +340,20 @@ export function registerWriteTools(server: McpServer, ctx: Context) {
           if (sku.cost_price === undefined) {
             return toolError(`Yampi requires \`cost_price\` alongside \`sale_price\` on SKU ${sku.sku_id}.`);
           }
+          if (sku.variations_values_ids === undefined) {
+            return toolError(
+              `Yampi requires \`variations_values_ids\` when updating price on SKU ${sku.sku_id}. ` +
+                "Use get_product and send one variations[].value_id per product variation.",
+            );
+          }
           const updated = await ctx.client.request<any>(alias, `/catalog/skus/${sku.sku_id}`, {
             method: "PUT",
-            body: { product_id, price_sale: sku.sale_price, price_cost: sku.cost_price },
+            body: skuUpdateBody({
+              product_id,
+              sale_price: sku.sale_price,
+              cost_price: sku.cost_price,
+              variations_values_ids: sku.variations_values_ids,
+            }),
           });
           done.push(updated.data);
         }
