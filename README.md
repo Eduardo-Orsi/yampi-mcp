@@ -170,6 +170,8 @@ documentation:
   of a live store. Stock lives in `/logistics/stocks` (the stock location) joined to the SKU at
   `/catalog/skus/{id}/stocks`. And `stock_id` is **not** the id from `/logistics/warehouses`,
   which is a different resource entirely.
+- **SKU price updates require `variations_values_ids`.** Send it as an array containing one
+  selected value id for each product variation, even when the request only changes the price.
 - **Coupon `discount_type` accepts only `p` or `v`**, not `percentage`/`fixed`.
 - **Coupon dates require `Y-m-d H:i:s`.** Date alone returns 422.
 - **Transaction filters only work as `search=field:value`.** `status=`, `status[]=`, `customer_id=`
